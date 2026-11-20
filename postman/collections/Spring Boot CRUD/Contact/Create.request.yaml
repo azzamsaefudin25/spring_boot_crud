@@ -1,0 +1,19 @@
+$kind: http-request
+url: http://localhost:8080/api/contacts
+method: POST
+headers:
+  X-API-TOKEN: ce8f4380-4666-4093-ab69-dad2f3dd5e38
+body:
+  type: json
+  content: "{\r
+
+    \  \"firstName\": \"User\",\r
+
+    \  \"lastName\": \"Baru\",\r
+
+    \  \"email\": \"user@example.com\",\r
+
+    \  \"phone\": \"0899889998\"\r
+
+    }"
+order: 2000
