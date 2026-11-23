@@ -17,6 +17,8 @@ import java.util.List;
 public class Contact {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(nullable = false, updatable = false)
     private String id;
 
     @Column(name = "first_name")
@@ -29,8 +31,8 @@ public class Contact {
 
     private String email;
 
-    @ManyToOne
-    @JoinColumn(name = "username", referencedColumnName = "username")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
 
     @OneToMany(mappedBy = "contact")

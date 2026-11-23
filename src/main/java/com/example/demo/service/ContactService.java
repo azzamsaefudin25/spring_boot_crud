@@ -4,7 +4,6 @@ import com.example.demo.entity.Contact;
 import com.example.demo.entity.User;
 import com.example.demo.dto.ContactResponse;
 import com.example.demo.dto.CreateContactRequest;
-import com.example.demo.dto.SearchContactRequest;
 import com.example.demo.dto.UpdateContactRequest;
 import com.example.demo.repository.ContactRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -38,7 +37,6 @@ public class ContactService {
         validationService.validate(request);
 
         Contact contact = new Contact();
-        contact.setId(UUID.randomUUID().toString());
         contact.setFirstName(request.getFirstName());
         contact.setLastName(request.getLastName());
         contact.setEmail(request.getEmail());
@@ -92,31 +90,5 @@ public class ContactService {
         contactRepository.delete(contact);
     }
 
-    @Transactional
-    public Page<ContactResponse> search(User user, SearchContactRequest request){
-        Specification<Contact> specification = (root, query, builder) -> {
-            List<Predicate> predicates = new ArrayList<>();
-            predicates.add(builder.equal(root.get("user"), user));
-            if (Objects.nonNull(request.getName())) {
-                predicates.add(builder.or(
-                        builder.like(root.get("firstName"), "%" + request.getName() + "%"),
-                        builder.like(root.get("lastName"), "%" + request.getName() + "%")
-                ));
-            }
-            if (Objects.nonNull(request.getPhone())) {
-                predicates.add(builder.like(root.get("phone"), "%" + request.getPhone() + "%"));
-            }
-
-            return query.where(predicates.toArray(new Predicate[]{})).getRestriction();
-        };
-
-        Pageable pageable = PageRequest.of(request.getPage(), request.getSize());
-        Page<Contact> contacts = contactRepository.findAll(specification, pageable);
-        List<ContactResponse> contactResponses = contacts.getContent().stream()
-                .map(this::toContactResponse)
-                .toList();
-
-        return new PageImpl<>(contactResponses, pageable, contacts.getTotalElements());
-    }
 }
 
