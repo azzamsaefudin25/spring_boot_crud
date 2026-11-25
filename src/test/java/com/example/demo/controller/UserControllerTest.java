@@ -5,14 +5,17 @@ import com.example.demo.dto.RegisterUserRequest;
 import com.example.demo.dto.UpdateUserRequest;
 import com.example.demo.dto.UserResponse;
 import com.example.demo.dto.WebResponse;
+import com.example.demo.repository.AddressRepository;
+import com.example.demo.repository.ContactRepository;
 import com.example.demo.repository.UserRepository;
-import com.example.demo.security.BCrypt;
+import com.example.demo.service.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -21,7 +24,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-
 @SpringBootTest
 @AutoConfigureMockMvc
 class UserControllerTest {
@@ -29,20 +31,28 @@ class UserControllerTest {
     @Autowired
     private MockMvc mockMvc;
 
-//    @Autowired
-//    private ContactRepository contactRepository;
-//
-//    @Autowired
-//    private AddressRepository addressRepository;
+    @Autowired
+    private ContactRepository contactRepository;
+
+    @Autowired
+    private AddressRepository addressRepository;
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtService jwtService;
 
     @Autowired
     private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
+        addressRepository.deleteAll();
+        contactRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -94,7 +104,7 @@ class UserControllerTest {
     void testRegisterDuplicate() throws Exception {
         User user = new User();
         user.setUsername("test");
-        user.setPassword(BCrypt.hashpw("rahasia", BCrypt.gensalt()));
+        user.setPassword(passwordEncoder.encode("rahasia"));
         user.setName("Test");
         userRepository.save(user);
 
@@ -123,7 +133,7 @@ class UserControllerTest {
         mockMvc.perform(
                 get("/api/users/current")
                         .accept(MediaType.APPLICATION_JSON)
-                        .header("X-API-TOKEN", "notfound")
+                        .header("Authorization", "Bearer invalidtoken")
         ).andExpectAll(
                 status().isUnauthorized()
         ).andDo(result -> {
@@ -153,16 +163,16 @@ class UserControllerTest {
     void getUserSuccess() throws Exception {
         User user = new User();
         user.setUsername("test");
-        user.setPassword(BCrypt.hashpw("rahasia", BCrypt.gensalt()));
+        user.setPassword(passwordEncoder.encode("rahasia"));
         user.setName("Test");
-        user.setToken("test");
-        user.setTokenExpiredAt(System.currentTimeMillis() + 10000000000L);
         userRepository.save(user);
+
+        String jwt = jwtService.generateToken(user);
 
         mockMvc.perform(
                 get("/api/users/current")
                         .accept(MediaType.APPLICATION_JSON)
-                        .header("X-API-TOKEN", "test")
+                        .header("Authorization", "Bearer " + jwt)
         ).andExpectAll(
                 status().isOk()
         ).andDo(result -> {
@@ -198,11 +208,11 @@ class UserControllerTest {
     void updateUserSuccess() throws Exception {
         User user = new User();
         user.setUsername("test");
-        user.setPassword(BCrypt.hashpw("rahasia", BCrypt.gensalt()));
+        user.setPassword(passwordEncoder.encode("rahasia"));
         user.setName("Test");
-        user.setToken("test");
-        user.setTokenExpiredAt(System.currentTimeMillis() + 100000000000L);
         userRepository.save(user);
+
+        String jwt = jwtService.generateToken(user);
 
         UpdateUserRequest request = new UpdateUserRequest();
         request.setName("Eko");
@@ -213,7 +223,7 @@ class UserControllerTest {
                         .accept(MediaType.APPLICATION_JSON)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
-                        .header("X-API-TOKEN", "test")
+                        .header("Authorization", "Bearer " + jwt)
         ).andExpectAll(
                 status().isOk()
         ).andDo(result -> {
@@ -224,9 +234,9 @@ class UserControllerTest {
             assertEquals("Eko", response.getData().getName());
             assertEquals("test", response.getData().getUsername());
 
-            User userDb = userRepository.findById("test").orElse(null);
+            User userDb = userRepository.findByUsername("test").orElse(null);
             assertNotNull(userDb);
-            assertTrue(BCrypt.checkpw("eko12345", userDb.getPassword()));
+            assertTrue(passwordEncoder.matches("eko12345", userDb.getPassword()));
         });
     }
 }

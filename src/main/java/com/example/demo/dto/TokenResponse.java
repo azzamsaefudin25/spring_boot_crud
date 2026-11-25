@@ -11,7 +11,10 @@ import lombok.NoArgsConstructor;
 @Builder
 public class TokenResponse {
 
-    private String token;
+    private String accessToken;
 
-    private Long expiredAt;
+    @Builder.Default
+    private String tokenType = "Bearer";
+
+    private Long expiresIn;
 }

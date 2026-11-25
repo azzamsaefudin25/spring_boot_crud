@@ -4,14 +4,17 @@ import com.example.demo.entity.User;
 import com.example.demo.dto.LoginUserRequest;
 import com.example.demo.dto.TokenResponse;
 import com.example.demo.dto.WebResponse;
+import com.example.demo.repository.AddressRepository;
+import com.example.demo.repository.ContactRepository;
 import com.example.demo.repository.UserRepository;
-import com.example.demo.security.BCrypt;
+import com.example.demo.service.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -30,19 +33,25 @@ class AuthControllerTest {
     @Autowired
     private UserRepository userRepository;
 
-//    @Autowired
-//    private AddressRepository addressRepository;
-//
-//    @Autowired
-//    private ContactRepository contactRepository;
+    @Autowired
+    private AddressRepository addressRepository;
+
+    @Autowired
+    private ContactRepository contactRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private JwtService jwtService;
 
     @Autowired
     private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
-//        addressRepository.deleteAll();
-//        contactRepository.deleteAll();
+        addressRepository.deleteAll();
+        contactRepository.deleteAll();
         userRepository.deleteAll();
     }
 
@@ -71,7 +80,7 @@ class AuthControllerTest {
         User user = new User();
         user.setName("Test");
         user.setUsername("test");
-        user.setPassword(BCrypt.hashpw("test", BCrypt.gensalt()));
+        user.setPassword(passwordEncoder.encode("test"));
         userRepository.save(user);
 
         LoginUserRequest request = new LoginUserRequest();
@@ -97,7 +106,7 @@ class AuthControllerTest {
         User user = new User();
         user.setName("Test");
         user.setUsername("test");
-        user.setPassword(BCrypt.hashpw("test", BCrypt.gensalt()));
+        user.setPassword(passwordEncoder.encode("test"));
         userRepository.save(user);
 
         LoginUserRequest request = new LoginUserRequest();
@@ -115,20 +124,16 @@ class AuthControllerTest {
             WebResponse<TokenResponse> response = objectMapper.readValue(result.getResponse().getContentAsString(), new TypeReference<>() {
             });
             assertNull(response.getErrors());
-            assertNotNull(response.getData().getToken());
-            assertNotNull(response.getData().getExpiredAt());
-
-            User userDb = userRepository.findById("test").orElse(null);
-            assertNotNull(userDb);
-            assertEquals(userDb.getToken(), response.getData().getToken());
-            assertEquals(userDb.getTokenExpiredAt(), response.getData().getExpiredAt());
+            assertNotNull(response.getData().getAccessToken());
+            assertEquals("Bearer", response.getData().getTokenType());
+            assertNotNull(response.getData().getExpiresIn());
         });
     }
 
     @Test
     void logoutFailed() throws Exception {
         mockMvc.perform(
-                delete("/api/auth/logout")
+                post("/api/auth/logout")
                         .accept(MediaType.APPLICATION_JSON)
         ).andExpectAll(
                 status().isUnauthorized()
@@ -144,15 +149,15 @@ class AuthControllerTest {
         User user = new User();
         user.setUsername("test");
         user.setName("Test");
-        user.setPassword(BCrypt.hashpw("test", BCrypt.gensalt()));
-        user.setToken("test");
-        user.setTokenExpiredAt(System.currentTimeMillis() + 10000000L);
+        user.setPassword(passwordEncoder.encode("test"));
         userRepository.save(user);
 
+        String jwt = jwtService.generateToken(user);
+
         mockMvc.perform(
-                delete("/api/auth/logout")
+                post("/api/auth/logout")
                         .accept(MediaType.APPLICATION_JSON)
-                        .header("X-API-TOKEN", "test")
+                        .header("Authorization", "Bearer " + jwt)
         ).andExpectAll(
                 status().isOk()
         ).andDo(result -> {
@@ -160,11 +165,6 @@ class AuthControllerTest {
             });
             assertNull(response.getErrors());
             assertEquals("OK", response.getData());
-
-            User userDb = userRepository.findById("test").orElse(null);
-            assertNotNull(userDb);
-            assertNull(userDb.getTokenExpiredAt());
-            assertNull(userDb.getToken());
         });
     }
 }

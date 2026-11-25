@@ -4,14 +4,15 @@ import com.example.demo.entity.User;
 import com.example.demo.dto.LoginUserRequest;
 import com.example.demo.dto.TokenResponse;
 import com.example.demo.repository.UserRepository;
-import com.example.demo.security.BCrypt;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.UUID;
 
 @Service
 public class AuthService {
@@ -22,36 +23,41 @@ public class AuthService {
     @Autowired
     private ValidationService validationService;
 
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private JwtService jwtService;
+
     @Transactional
     public TokenResponse login(LoginUserRequest request) {
         validationService.validate(request);
 
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.getUsername(),
+                            request.getPassword()
+                    )
+            );
+        } catch (AuthenticationException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Username or password wrong");
+        }
+
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Username or password wrong"));
 
-        if (BCrypt.checkpw(request.getPassword(), user.getPassword())) {
-            user.setToken(UUID.randomUUID().toString());
-            user.setTokenExpiredAt(next30Days());
-            userRepository.save(user);
+        String jwtToken = jwtService.generateToken(user);
+        long expiresInSeconds = jwtService.getJwtExpiration() / 1000;
 
-            return TokenResponse.builder()
-                    .token(user.getToken())
-                    .expiredAt(user.getTokenExpiredAt())
-                    .build();
-        } else {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Username or password wrong");
-        }
+        return TokenResponse.builder()
+                .accessToken(jwtToken)
+                .tokenType("Bearer")
+                .expiresIn(expiresInSeconds)
+                .build();
     }
 
-    private Long next30Days() {
-        return System.currentTimeMillis() + (1000L * 60 * 60 * 24 * 30);
-    }
-
-    @Transactional
     public void logout(User user) {
-        user.setToken(null);
-        user.setTokenExpiredAt(null);
-
-        userRepository.save(user);
+        SecurityContextHolder.clearContext();
     }
 }

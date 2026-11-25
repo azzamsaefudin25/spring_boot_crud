@@ -26,6 +26,12 @@ ALTER TABLE users
 ALTER TABLE users
     ADD CONSTRAINT pk_users PRIMARY KEY (id);
 
+ALTER TABLE users
+    ADD COLUMN created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN updated_at TIMESTAMPTZ,
+    ADD COLUMN deleted_at TIMESTAMPTZ,
+    ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
+
 SELECT * FROM users;
 
 \d users;
@@ -66,6 +72,17 @@ SELECT
 FROM pg_constraint
 WHERE conrelid = 'contacts'::regclass
   AND contype = 'f';
+
+ALTER TABLE contacts
+    ADD CONSTRAINT users_email_unique UNIQUE (email),
+    ADD CONSTRAINT users_phone_unique UNIQUE (phone);
+
+ALTER TABLE contacts
+    ADD COLUMN created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN updated_at TIMESTAMPTZ,
+    ADD COLUMN deleted_at TIMESTAMPTZ,
+    ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
+
 -- Address
 
 CREATE TABLE addresses
@@ -84,14 +101,12 @@ CREATE TABLE addresses
             REFERENCES contacts (id)
 );
 
+ALTER TABLE addresses
+    ADD COLUMN created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN updated_at TIMESTAMPTZ,
+    ADD COLUMN deleted_at TIMESTAMPTZ;
+
 SELECT * FROM addresses;
 
-\d addresses
+\d addresses;
 
--- Delete data
-
-DELETE FROM addresses;
-
-DELETE FROM contacts;
-
-DELETE FROM users;
